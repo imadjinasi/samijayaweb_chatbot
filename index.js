@@ -2,13 +2,12 @@ import TelegramBot from "node-telegram-bot-api";
 import admin from "firebase-admin";
 
 // ==============================
-// 🔐 ENV VARIABLES (WAJIB)
+// 🔐 ENV VARIABLES
 // ==============================
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
-// Firebase config dari ENV (disarankan)
 const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
 const FIREBASE_CLIENT_EMAIL = process.env.FIREBASE_CLIENT_EMAIL;
 const FIREBASE_PRIVATE_KEY = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
@@ -30,7 +29,7 @@ admin.initializeApp({
 const db = admin.database();
 
 // ==============================
-// 🤖 INIT TELEGRAM BOT
+// 🤖 TELEGRAM BOT
 // ==============================
 
 const bot = new TelegramBot(TELEGRAM_TOKEN, {
@@ -40,22 +39,16 @@ const bot = new TelegramBot(TELEGRAM_TOKEN, {
 console.log("🚀 Samijaya Chatbot running...");
 
 // ==============================
-// 🧠 TRACK LAST MESSAGE (ANTI DUPLICATE)
+// 🧠 LISTENER USER → TELEGRAM
 // ==============================
 
 const activeListeners = new Set();
-
-// ==============================
-// 📩 USER → TELEGRAM
-// ==============================
 
 db.ref("chats").on("child_added", (snapshot) => {
   const sessionId = snapshot.key;
 
   if (activeListeners.has(sessionId)) return;
   activeListeners.add(sessionId);
-
-  console.log(`👤 New chat detected: ${sessionId}`);
 
   db.ref(`chats/${sessionId}/profile/name`).once("value", (nameSnap) => {
     const name = nameSnap.val() || "Customer";
@@ -67,7 +60,7 @@ db.ref("chats").on("child_added", (snapshot) => {
 
         if (!msg || msg.sender !== "user") return;
 
-        const messageText = `
+        const text = `
 🆕 Chat Masuk - Kopi Samijaya
 
 👤 ${name}
@@ -76,18 +69,17 @@ db.ref("chats").on("child_added", (snapshot) => {
 💬 ${msg.text}
         `;
 
-        bot.sendMessage(TELEGRAM_CHAT_ID, messageText.trim());
+        bot.sendMessage(TELEGRAM_CHAT_ID, text.trim());
       });
   });
 });
 
 // ==============================
-// 🔁 TELEGRAM → USER (REPLY BASED)
+// 🔁 TELEGRAM REPLY → FIREBASE
 // ==============================
 
 bot.on("message", async (msg) => {
   try {
-    // HANYA proses kalau reply
     if (!msg.reply_to_message) return;
 
     const originalText = msg.reply_to_message.text;
@@ -95,7 +87,6 @@ bot.on("message", async (msg) => {
 
     if (!originalText || !replyText) return;
 
-    // Ambil sessionId dari pesan sebelumnya
     const match = originalText.match(/🆔 (USR-\w+)/);
 
     if (!match) {
@@ -113,7 +104,7 @@ bot.on("message", async (msg) => {
       timestamp: Date.now()
     });
 
-  } catch (error) {
-    console.error("❌ Error reply:", error);
+  } catch (err) {
+    console.error("❌ Error:", err);
   }
 });
